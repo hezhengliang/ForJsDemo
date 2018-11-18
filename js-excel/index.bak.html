@@ -1,0 +1,356 @@
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>SheetJS Live Grid Demo</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+  </head>
+  <style>
+  #drop{
+  border:2px dashed #bbb;
+  -moz-border-radius:5px;
+  -webkit-border-radius:5px;
+  border-radius:5px;
+  padding:25px;
+  text-align:center;
+  font:20pt bold,"Vollkorn";color:#bbb
+  }
+  #container {
+    width:1200px;
+    height:auto;
+    margin:40px auto;
+  }
+  #item-list{
+    width:100%;
+    height:48px;
+    overflow: hidden;
+  }
+  #grid-container{
+    width:1200px;
+    height:800px;
+    display: none;
+    margin-top:20px;
+  }
+  #grid{
+    width:100%;
+    height:100%;
+  }
+  #table-container{
+    width:100%;
+    height:600px;
+  }
+  #table-container table{
+    border-collapse: collapse;
+    width:100%;
+    height:auto;
+    margin-bottom:40px;
+  }
+  #table-container table tr td{
+    border:1px solid #999;
+    width:auto;
+    height:28px;
+    line-height:28px;
+    text-align: center;
+    font-size:14px;
+  }
+  #table-container table tr.tr-title{
+    background:#369B62;
+    color:#fff;
+    border-right:1px solid #369B62;
+    border-left:1px solid #369B62;
+    border-left:1px solid #369B62;
+    border-bottom:1px solid #999;
+  }
+  .sheet-item{
+    width:100%;
+    height:auto;
+    display: none;
+  }
+  .sheet-item.active{
+    display: block;
+  }
+  #item-list{
+    width:100%;
+    height:60px;
+    margin:0 10px;
+    overflow: hidden;
+  }
+  .title-item{
+    width:auto;
+    height:40px;
+    line-height:40px;
+    border:1px solid red;
+    padding:0 10px;
+    margin:0 5px;
+    float: left;
+    cursor: pointer;
+  }
+  .title-item span{
+    display: block;
+    width:100%;
+    height:100%;
+  }
+  </style>
+  <body>
+    <div id="container">
+        <!-- <div id="drop">Drop a spreadsheet file here to see sheet data</div> -->
+        <input type="file" name="xlfile" id="xlf" value="预览"/> ... or click here to select a file
+        <div id="buttons"></div>
+          <input type="checkbox" name="userabs" checked="checked" style="display: none">
+          <div id="item-list">
+          </div>
+        <!-- <p><input type="submit" value="Export to XLSX!" id="xport" onclick="export_xlsx();" disabled="true"></p> -->
+        <div id="grid-container">
+            <div id="grid"></div>   
+        </div>
+        <div id="table-container">
+
+        </div>
+    </div>
+  </body>
+<script type="text/javascript" src="./canvas-datagrid.js"></script>
+<script type="text/javascript" src="./shim.min.js"></script>
+<script type="text/javascript" src="./xlsx.full.min.js"></script>
+<script>
+/*jshint browser:true */
+/* eslint-env browser */
+/* eslint no-use-before-define:0 */
+/*global Uint8Array, Uint16Array, ArrayBuffer */
+/*global XLSX */
+var X = XLSX;
+var cDg;
+var allData = null;
+var allTitle = null;
+var _grid = document.getElementById('grid');
+var maxWidth = null;
+function returnJson (json) {
+    // _grid.style.display = "block";
+    var L = 0;
+    json.forEach(function(r) { if(L < r.length) L = r.length; });
+    for(var i = json[0].length; i < L; ++i) {
+      json[0][i] = "";
+    }
+    return json
+}
+
+var process_wb = (function() {
+  // var XPORT = document.getElementById('xport');
+  // var HTMLOUT = document.getElementById('htmlout');
+  return function process_wb(wb) {
+    var jsonData = []
+    for (var i = 0 ; i < 4 ; i++) {
+        jsonData.push([])
+        var sheet = wb.SheetNames[i];
+        var json = to_json(wb)[sheet];
+        jsonData[i] = returnJson (json);
+    }
+    allData = jsonData;
+    allTitle = wb.SheetNames;
+    analysisExcelToHtml();
+    excelSheetSwitch();
+    return;
+    sheetnames = wb.SheetNames
+    var buttons = document.getElementById('item-list');
+      buttons.innerHTML = "";
+      sheetnames.forEach(function(s,idx) {
+        var btn = document.createElement('div');
+        btn.className = 'title-item';
+        var txt = document.createElement('span');
+        txt.innerText = s.split('.')[1];
+        txt.className = 'title-'+ idx;
+        btn.appendChild(txt);
+        // btn.addEventListener('click', function() { cb(idx); }, false);
+        btn.addEventListener('click', function (e) {
+          var target = e.target;
+          var index = target.className.split('-')[1]
+          cDg.data = jsonData[index];
+          updateCellWidth(index);
+        });
+        buttons.appendChild(btn);
+        // buttons.appendChild(document.createElement('br'));
+    }); 
+    // /* update canvas-datagrid */
+    if(!cDg)  {
+      cDg = canvasDatagrid({
+          parentNode: _grid,
+          // debug: true,
+          editable: false,
+          allowSorting:false,
+          // showRowHeaders:false,
+          showClearSettingsOption:false,
+          clearSettingsOptionText: '清除',
+          columnHeaderClickBehavior: 'none',
+          // showColumnHeaders:false,
+          showColumnSelector:false,
+          showFilter:false,
+          showNewRow:false,
+      });
+    }
+
+    cDg.style.height = '100%';
+    cDg.style.width = '100%';
+    cDg.style.cellBorderColor = '#000';
+    cDg.style.cellBorderWidth = 0.2;
+    // cDg.style.columnHeaderCellBackgroundColor = '#f00';
+    // cDg.style.rowHeaderCellSelectedBackgroundColor = '#f00';
+    // cDg.style.rowHeaderCellBackgroundColor = '#f00';
+    cDg.data = allData[0];
+    updateCellWidth(0);
+
+  };
+})();
+function excelSheetSwitch () {
+  var sheets = document.getElementById('item-list');
+  sheets.innerHTML = "";
+  allTitle.forEach(function(s,idx) {
+    var btn = document.createElement('div');
+    btn.className = 'title-item';
+    var txt = document.createElement('span');
+    txt.innerText = s.split('.')[1];
+    txt.className = 'title-'+ idx;
+    btn.appendChild(txt);
+    sheets.appendChild(btn);
+  });
+  var titleDom = document.querySelectorAll('div.title-item');
+  var sheetDom = document.querySelectorAll('div.sheet-item');
+  var sheetActive = function (index) {
+    for (var i = 0; i < sheetDom.length; i++) {
+      sheetDom[i].className = 'sheet-item';
+      sheetDom[index].className = 'sheet-item active'
+   }
+  }
+  for (var i = 0; i < sheetDom.length; i++) {
+    titleDom[i].index = i;
+    titleDom[i].onclick = function () {
+      for (var j = 0; j < titleDom.length; j++) {
+        titleDom[j].className = 'title-item';
+        this.className ='title-item';
+        sheetActive(this.index);
+      }
+    }
+  }
+}
+function analysisExcelToHtml() {
+  var data = allData[0];
+  var box = document.getElementById('table-container');
+  for (var k = 0; k < allData.length; k ++) {
+      var data = allData[k];
+      var tmpStr = k === 0 ? '<div class="sheet-item active"><table>': '<div class="sheet-item"><table>';
+      var maxLen = 0;
+      for (var i = 0; i < data.length; i++) {
+          var jLen = data[i].length;
+          if (jLen != 0){
+            if (maxLen < jLen) maxLen = jLen;
+            if (i == 0 || jLen == 1) {
+              tmpStr += '<tr class="tr-title"  ><td colspan="'+ maxLen +'" >'+ (typeof(data[i][0]) == 'undefined' ? '' : data[i][0])+'</td></tr>';
+            } else {
+              tmpStr += '<tr>';
+              for (var j = 0 ;j < maxLen ; j ++) {
+                tmpStr += '<td>'+ (typeof(data[i][j]) == 'undefined' ? '' : data[i][j])+'</td>';
+                  // if ( i == 1) {
+                  //   tmpStr += '<td style="background:#369B62;color:#fff">'+ (typeof(data[i][j]) == 'undefined' ? '' : data[i][j])+'</td>';
+                  // } else {
+                  //   tmpStr += '<td>'+ (typeof(data[i][j]) == 'undefined' ? '' : data[i][j])+'</td>';
+                  // }
+              }
+              tmpStr += '</tr>';
+            }
+          }
+      }
+      tmpStr += '</table></div>'
+      box.innerHTML += tmpStr;
+      // activeHandle ()
+    }
+}
+
+function updateCellWidth (index) {
+  var len = allData[index][1].length;
+  var cellWidth = maxWidth / len - len *0.2;
+  cDg.style.cellWidth = cellWidth ;
+}
+function to_json(workbook) {
+  // if(useworker && workbook.SSF) XLSX.SSF.load_table(workbook.SSF);
+  XLSX.SSF.load_table(workbook.SSF);
+  var result = {};
+  workbook.SheetNames.forEach(function(sheetName) {
+    var roa = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1});
+    if(roa.length > 0) result[sheetName] = roa;
+  });
+  return result;
+}
+
+var do_file = (function() {
+  window.onload = function () {
+    var box = document.getElementById('grid-container');
+    maxWidth = box.offsetWidth;
+  }
+  var rABS = typeof FileReader !== "undefined" && (FileReader.prototype||{}).readAsBinaryString;
+  var domrabs = document.getElementsByName("userabs")[0];
+  if(!rABS) domrabs.disabled = !(domrabs.checked = false);
+  return function do_file(files) {
+    // rABS = domrabs.checked;
+    var f = files[0];
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      if(typeof console !== 'undefined') console.log("onload", new Date(), rABS);
+      var data = e.target.result;
+
+      if(!rABS) data = new Uint8Array(data);
+      new Uint8Array(data);
+      /* show grid */
+      // _grid.style.display = "block";
+      // _resize();
+      process_wb(X.read(data, {type: rABS ? 'binary' : 'array'}));
+    };
+    if(rABS) reader.readAsBinaryString(f);
+    else reader.readAsArrayBuffer(f);
+  };
+})();
+
+(function() {
+  var xlf = document.getElementById('xlf');
+  if(!xlf.addEventListener) return;
+  function handleFile(e) { do_file(e.target.files); }
+  xlf.addEventListener('change', handleFile, false);
+})();
+
+var export_xlsx = (function() {
+  function prep(arr) {
+    var out = [];
+    for(var i = 0; i < arr.length; ++i) {
+      if(!arr[i]) continue;
+      if(Array.isArray(arr[i])) { out[i] = arr[i]; continue };
+      var o = new Array();
+      Object.keys(arr[i]).forEach(function(k) { o[+k] = arr[i][k] });
+      out[i] = o;
+    }
+    return out;
+  }
+
+  return function export_xlsx() {
+    if(!cDg) return;
+    /* convert canvas-datagrid data to worksheet */
+    var new_ws = XLSX.utils.aoa_to_sheet(prep(cDg.data));
+    /* build workbook */
+    var new_wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(new_wb, new_ws, 'SheetJS');
+    /* write file and trigger a download */
+    XLSX.writeFile(new_wb, 'sheetjs.xlsx', {bookSST:true});
+  };
+})();
+</script>
+
+<script type="text/javascript">
+/* eslint no-use-before-define:0 */
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-36810333-1']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+</script>
+</html>
